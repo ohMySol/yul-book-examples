@@ -5,7 +5,7 @@ This section will introduce you in [YUL](https://docs.soliditylang.org/en/latest
 * [Why do we use Yul?](#why-do-we-use-yul?)
 * [Difference between Yul and Assembly](#difference-between-yul-and-assembly)
 * [Yul Syntax](#yul-syntax)
-* [Basic Yul code example](#basic-code-example)
+* [Basic Yul code example](#basic-yul-code-example)
 * [Yul Data Types](#yul-data-types)
 * [Conclusion](#conclusion)
 * [Useful Tools](#useful-tools)
