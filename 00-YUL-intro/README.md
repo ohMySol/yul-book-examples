@@ -72,7 +72,7 @@ contract StructStorage {
  let x := 42    // Decimal literal for the integer 42
  let y := 0x2A  // Hexadecimal literal for the same number (42 in decimal)
  ```
-2. String literals represented in **ASCII** or **Unicode** text values. Be carefull, **strings are limited to a maximum of 32 bytes in Yul because all data is represented as bytes32**.
+2. String literals represented in **ASCII** or **Unicode** text values. Be carefull, **strings are limited to a maximum of 32 bytes in Yul because all data is represented as bytes32**. \
  Plain text characters: `"abc"` \
  Hexadecimal escapes: `\xNN` (e.g., `"\x41\x42\x43"` represents "ABC"). \
  Unicode escapes: `\uNNNN` where N are hexadecimal digits. (e.g., `"\u0041\u0042\u0043"`  represents "ABC").
