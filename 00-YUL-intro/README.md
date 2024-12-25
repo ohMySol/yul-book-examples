@@ -13,7 +13,7 @@ This section will introduce you in [YUL](https://docs.soliditylang.org/en/latest
  - Yul - is a a low level programming language which allows you keep more granular control over your smart contract execution. You can write an entire smart contract in Yul, or you can use a "inline assembly" mode and write a Yul code parts inside your smart contract.
  - **Remember in Yul we have only 1 data type: bytes32**
 ## Why do we use Yul?
- - Mainly for performance, the compiler is stil not great at optimising code.  [Check this blog](https://makemake.site/post/solidity-considered-harmful).
+ - Mainly for performance, the compiler is still not great at optimising code.  [Check this blog](https://makemake.site/post/solidity-considered-harmful).
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/757cfa2b1761d13362df86cb63f36a8e160bb176/SolidityVsYul.jpg)
 ## Difference between Yul and Assembly
  - **Assembly** is a low-level language, really close to what your computer can understand. It’s a sequence of instructions for your computer to execute (here: the EVM).
