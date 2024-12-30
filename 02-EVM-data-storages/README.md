@@ -6,3 +6,12 @@ This section decribes the main data storage locations that are used by EVM when 
 * [EVM Memory](#evm-memory)
 * [EVM Calldata](#evm-calldata)
 ## Intro to data storage locations
+In EVM we have 6 different places where the data can be stored:
+ - Stack
+ - Storage
+ - Memory
+ - Calldata
+ - Code
+ - Events
+ 
+I will talk about Stack, Storage, Memory and Calldata.
