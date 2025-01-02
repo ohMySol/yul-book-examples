@@ -92,7 +92,3 @@ bytes32(0x6162630000000000000000000000000000000000000000000000000000000000)
 ```
 ## Conclusion
 My advice is to be ready to count in hexadecimal 😄
-## Useful Tools
- - [EVM Opcodes and Playground](https://www.evm.codes/)
- - [Decompiler](https://ethervm.io/decompile)
- - [EVM Dissasembler](https://github.com/Arachnid/evmdis)
