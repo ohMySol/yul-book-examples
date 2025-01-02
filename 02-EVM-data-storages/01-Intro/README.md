@@ -1,4 +1,4 @@
-# EVM data storage locations.
+# EVM data storage locations
 This section decribes the main data storage locations that are used by EVM when running your smart contracts. I've covered in deep storage, memory and calldata structure. \
 I've grouped information about all data storage locations in underlying folders: stack, storage, memory and calldata.
 ## Table of Content 

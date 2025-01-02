@@ -1,4 +1,4 @@
-# YUL introduction.
+# YUL introduction
 This section will introduce you in [YUL](https://docs.soliditylang.org/en/latest/yul.html) - a low level language for smart contracts which acts as a bridge between high-level languages (like Solidity) and EVM bytecode.
 ## Table of Content 
 * [What is Yul?](#what-is-yul?)

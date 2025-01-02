@@ -1,4 +1,4 @@
-# YUL syntax overview.
+# YUL syntax overview
 This section will show a basic synax, that you'll you quite often. Here you will see variables declaration, control structures, loops, functions in Yul. **Please do not be afraid if you don't understand some opcodes or logic, I'll explain everything in the next sections :)** \
 All information I mostly took from official [Solidity documentation](https://docs.soliditylang.org/en/latest/yul.html). Check it for more examples and information.
 ## Table of Content 
