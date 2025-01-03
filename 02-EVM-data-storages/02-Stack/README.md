@@ -10,7 +10,7 @@ If you are not familiar with the stack data structure, then I recommend you take
 ## Quick refresh about EVM
 1.  Such blockchains as Ethereum, Polygon, Binance Chain, Optimism etc use EVM(Ethereum Virtual Machine) as the underlying environment to execute the transaction and run the smart contracts.
  
-EVM Architecture:
+EVM Architecture: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/a1ae00fa8a54a9f8d84a194d0257b38f00e3d77f/EVM%20Architecture.jpg)
  
 2. EVM is a stack-based machine because it operates on the stack data structure and keeps inside this data structure values and executes actions.
@@ -20,7 +20,7 @@ EVM Architecture:
 ## What is stack-based architecture?
 1. It is a sort of computer architecture that stores values and performs actions using a stack data structure. The stack operates on a **LIFO** basis(last-in, first-out) which means that the most recently inserted item is stored at the top of the stack and is the first item removed.
 
-EVM Stack example:
+EVM Stack example: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/e77fbc1827c70c079378234259da3509c8ad1e92/Stack%20data%20structure.jpg)
 
 2. Program execution is controlled by **a stack pointer which points to the top of the stack**, and this pointer is responsible where the next value or instruction will be saved or retrieved on the stack.
@@ -34,14 +34,14 @@ As I understand EVM, as a virtual machine, should do a lot of operations in a sh
 ### EVM Stack Architecture
 1. The EVM stack is **a list of 256 bit**(mainly to facilitate native hashing and elliptic curve operations) words used to store smart contract instruction inputs and outputs.The stack currently has a **maximum capacity of 1024 values**. 
 
-EVM Stack diagram:
+EVM Stack diagram: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/6f0af6ba0bb527326ff6298b5798f3f39c8feb3c/EVM%20Stack.jpg)
 
 ### How EVM Stack works?
 1. Storage is where the variables are permanently stored on the blockchain. If you want to manipulate the data in storage you copy it to the memory. Then, all memory code is executed on stack. \
 When you define the local variable it is stored in memory and then pushed to the stack for execution.
 
-How EVM Stack works:
+How EVM Stack works: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/909faac4c7ff76dbde335e031567029a99a6712d/Ho%20EVM%20Stack%20works.png)
 
 2. Code example(the stack adding 2 and 4):
