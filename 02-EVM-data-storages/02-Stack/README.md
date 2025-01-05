@@ -5,7 +5,7 @@ If you are not familiar with the stack data structure, then I recommend you take
 * [Quick refresh about EVM](#quick-refresh-about-evm)
 * [What is stack-based architecture?](#what-is-stack-based-architecture?)
 * [Why does EVM use a stack-based architecture?](#why-does-evm-use-a-stack-based-architecture?)
-* [EVM Stack data structure](#evm-stack-data-structure)
+* [EVM Stack data storage](#evm-stack-data-storage)
 
 ## Quick refresh about EVM
 1.  Such blockchains as Ethereum, Polygon, Binance Chain, Optimism etc use EVM(Ethereum Virtual Machine) as the underlying environment to execute the transaction and run the smart contracts.
@@ -30,7 +30,7 @@ EVM Stack example: ⬇️ \
 ## Why does EVM use a stack-based architecture?
 As I understand EVM, as a virtual machine, should do a lot of operations in a short period of time, so we need smth quick and efficient. Stack with its LIFO data structure is a great solution for EVM, because it allows for easy and quick data and instruction handling.
 
-## EVM Stack data structure
+## EVM Stack data storage
 ### EVM Stack Architecture
 1. The EVM stack is **a list of 256 bit**(mainly to facilitate native hashing and elliptic curve operations) words used to store smart contract instruction inputs and outputs.The stack currently has a **maximum capacity of 1024 values**. 
 
