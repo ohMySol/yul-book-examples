@@ -6,6 +6,7 @@ If you are not familiar with the stack data structure, then I recommend you take
 * [What is stack-based architecture?](#what-is-stack-based-architecture?)
 * [Why does EVM use a stack-based architecture?](#why-does-evm-use-a-stack-based-architecture?)
 * [EVM Stack data storage](#evm-stack-data-storage)
+* [EVM Stack basic operations](#evm-stack-basic-operations)
 
 ## Quick refresh about EVM
 1.  Such blockchains as Ethereum, Polygon, Binance Chain, Optimism etc use EVM(Ethereum Virtual Machine) as the underlying environment to execute the transaction and run the smart contracts.
@@ -13,7 +14,7 @@ If you are not familiar with the stack data structure, then I recommend you take
 EVM Architecture: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/a1ae00fa8a54a9f8d84a194d0257b38f00e3d77f/EVM%20Architecture.jpg)
  
-2. EVM is a stack-based machine because it operates on the stack data structure and keeps inside this data structure values and executes actions.
+2. EVM is a stack-based machine because it operates on the stack data structure and keeps inside this data structure values and executes actions. This means that <ins>“the stack” is the primary data structure that programs work with when executing EVM opcodes</ins> .
 
 3. The EVM has its own set of instructions known as [opcodes](https://www.evm.codes/) that it uses to execute tasks such as reading and writing to storage, calling other contracts, and performing mathematical operations.
 
@@ -69,3 +70,99 @@ Execution flow:
  - Perform the addition: 4 + 2 = 6
 2. Push the result 6 back onto the stack.\
 `|__6__| ` is not the top of the stack.
+
+## EVM Stack basic operations
+EVM Stack has the next base operations:
+ - Pushing a value to the stack.
+ - Consuming stack items by running opcodes that require arguments.
+ - Swap stack items
+ - Duplicate stack item.
+
+### Pushing a value to the stack
+Below is an example when a `PUSH1` opcode will be used. The EVM has PUSH opcodes ranging from `PUSH1` up to `PUSH32`.
+```
+contract PushExample {
+    uint256 num;
+
+    function updateNum() external {
+        num += 10;
+    }
+}
+```
+Explanation:
+1. In the above example contract operates with hardcoded value 10 and add it to `num`. 10 must be push onto the stack to be used in the addition operation. So any time you have a hardcoded value like this – whether a number, boolean, address, string, and so on – this will involve a push opcode.
+2. In the compiled bytecode of this contract you can find `600a` value in the runtime bytecode section. `60` is an opcode for `PUSH1` instruction, and `0a` - hex representation of 10.
+3. So the above instruction - `PUSH1 0x0a`, pushes `0x0a`(10) as a 32-byte value onto the stack. **Reminder** - EVM operates on a 256 bit(32 byte) value size, and that's why we pushing 1 byte value, but stack receiving `0x000000000000000000000000000000000000000000000000000000000000000a` value.
+
+### Consuming stack items by running opcodes that require arguments
+The stack’s main purpose is to pass arguments to opcodes. For example `ADD` opcode pops from the stack 2 items --> add them --> and pushes back to the stack the result.
+```
+contract Example {
+    uint256 a = 3;
+    uint256 b = 5;
+    uint256 c = 6;
+
+    function addNums() external {
+        b + c;
+    }
+}
+```
+1. The above function is equivalent to this stack with opcodes:
+```
+PUSH1 0x03
+PUSH1 0x05
+PUSH1 0x06
+ADD
+```
+Guess how will look like the stack after this function execution? \
+Answer: `0x03` on the bottom of the stack and `0x0b`(11 - result of running `ADD`) on the top of the stack.
+
+### Swap stack items
+Usually opcodes are working with the topmost values in the stack, and quite often you need to work with values that are in different parts of the stack. So to operate on the right data EVM use `SWAP` opcode. \
+The `SWAP` opcodes range from `SWAP1` to `SWAP16`. **This means that you cannot reach back farther than 16 stack items**.
+
+1. Example:
+ - The `SWAP1` opcode exchanges the top value on the stack with the second value. For instance:
+```
+Before SWAP1:
+Stack: | A |
+       | B |
+```
+
+```
+After SWAP1:
+Stack: | B |
+       | A |
+```
+
+2. Opcodes example:
+ - Assume that we need to add `3 + 5`, but without `SWAP1` we will add 5 + `OLD_ADD_RESULT`
+```
+PUSH1 0x05              // Stack: | 0x05           |
+PUSH1 OLD_ADD_RESULT    // Stack: | OLD_ADD_RESULT | 5 |
+PUSH1 0x03              // Stack: | 0x03 | OLD_ADD_RESULT | 5 |
+
+ADD                     // Try to add them (pops the top two values)
+ 
+```
+
+ - In the below example with the help of `SWAP1` we swapped `0x03` with `OLD_ADD_RESULT` and successfully add 3 to 5 and receive back a result to stack `0x08`.
+```
+PUSH1 0x05            // Push 0x05 onto the stack
+PUSH1 OLD_ADD_RESULT  // Push OLD_ADD_RESULT onto the stack
+PUSH1 0x03            // Push 0x03 onto the stack
+
+SWAP1                 // Swap 0x03 with OLD_ADD_RESULT
+
+ADD                   // Add 0x03 and 0x05, push result
+```
+
+ - Final stack will look like this:
+```
+| 0x08           |  
+| OLD_ADD_RESULT |
+
+```
+
+### Duplicate stack item
+⚠️ When working with a stack-based machine, you don’t have access to variables So when you want to use a value more than once, and avoid redundant computation while doing so, a good option is to duplicate that value using one of the `DUP` opcodes.
