@@ -7,6 +7,7 @@ If you are not familiar with the stack data structure, then I recommend you take
 * [Why does EVM use a stack-based architecture?](#why-does-evm-use-a-stack-based-architecture?)
 * [EVM Stack data storage](#evm-stack-data-storage)
 * [EVM Stack basic operations](#evm-stack-basic-operations)
+* [Errors to omit with the EVM Stack](#errors-to-omit-with-the-evm-stack)
 
 ## Quick refresh about EVM
 1.  Such blockchains as Ethereum, Polygon, Binance Chain, Optimism etc use EVM(Ethereum Virtual Machine) as the underlying environment to execute the transaction and run the smart contracts.
@@ -38,7 +39,7 @@ As I understand EVM, as a virtual machine, should do a lot of operations in a sh
 EVM Stack diagram: ⬇️ \
 ![image alt](https://github.com/ohMySol/yul-book-examples/blob/6f0af6ba0bb527326ff6298b5798f3f39c8feb3c/EVM%20Stack.jpg)
 
-### How EVM Stack works?
+### How does EVM Stack work?
 1. Storage is where the variables are permanently stored on the blockchain. If you want to manipulate the data in storage you copy it to the memory. Then, all memory code is executed on stack. \
 When you define the local variable it is stored in memory and then pushed to the stack for execution.
 
@@ -90,7 +91,7 @@ contract PushExample {
 }
 ```
 Explanation:
-1. In the above example contract operates with hardcoded value 10 and add it to `num`. 10 must be push onto the stack to be used in the addition operation. So any time you have a hardcoded value like this – whether a number, boolean, address, string, and so on – this will involve a push opcode.
+1. In the above example contract operates with hardcoded value 10 and add it to `num`. 10 must be pushed onto the stack to be used in the addition operation. So any time you have a hardcoded value like this – whether a number, boolean, address, string, and so on – this will involve a push opcode.
 2. In the compiled bytecode of this contract you can find `600a` value in the runtime bytecode section. `60` is an opcode for `PUSH1` instruction, and `0a` - hex representation of 10.
 3. So the above instruction - `PUSH1 0x0a`, pushes `0x0a`(10) as a 32-byte value onto the stack. **Reminder** - EVM operates on a 256 bit(32 byte) value size, and that's why we pushing 1 byte value, but stack receiving `0x000000000000000000000000000000000000000000000000000000000000000a` value.
 
@@ -114,7 +115,7 @@ PUSH1 0x05
 PUSH1 0x06
 ADD
 ```
-Guess how will look like the stack after this function execution? \
+Guess how the stack will look like the stack after this function execution? \
 Answer: `0x03` on the bottom of the stack and `0x0b`(11 - result of running `ADD`) on the top of the stack.
 
 ### Swap stack items
@@ -146,7 +147,7 @@ ADD                     // Try to add them (pops the top two values)
  
 ```
 
- - In the below example with the help of `SWAP1` we swapped `0x03` with `OLD_ADD_RESULT` and successfully add 3 to 5 and receive back a result to stack `0x08`.
+ - In the below example with the help of `SWAP1` we swapped `0x03` with `OLD_ADD_RESULT` and successfully added 3 to 5 and received back a result to stack `0x08`.
 ```
 PUSH1 0x05            // Push 0x05 onto the stack
 PUSH1 OLD_ADD_RESULT  // Push OLD_ADD_RESULT onto the stack
@@ -165,4 +166,34 @@ ADD                   // Add 0x03 and 0x05, push result
 ```
 
 ### Duplicate stack item
-⚠️ When working with a stack-based machine, you don’t have access to variables So when you want to use a value more than once, and avoid redundant computation while doing so, a good option is to duplicate that value using one of the `DUP` opcodes.
+⚠️ When working with a stack-based machine, you don’t have access to variables. So when you want to use a value more than once, and avoid redundant computation while doing so, a good option is to duplicate that value using one of the `DUP` opcodes.
+
+1. Code example:
+```
+contract DupExample {
+    function example() external pure returns (uint256, uint256) {
+        uint256 a = 5;
+        uint256 b = a + a; // Using the same value twice (equivalent to DUP in EVM)
+        return (a, b);
+    }
+}
+```
+
+Opcodes representation:
+Here `DUP1` duplicates value 5, so that we can use it in the addition.
+```
+PUSH1 0x05      // Stack: | 0x05 |
+DUP1            // Stack: | 0x05 | 0x05 |
+ADD             // Stack: | 0x0A | 
+```
+
+## Errors to omit with the EVM Stack
+
+### Stack Overflow
+As I mentioned earlier in the beginning, the max number of items the stack can have is 1024. If you try to push more items than this, then execution will crash due to a stack overflow. \
+
+How does this overflow happen? \
+EVM has specific feature, **it can only access stack items that are up to 16 slots distant from the top-most slot**. So if you push more than 16 items into the stack and then try to retrieve the 17th item, EVM will throw the “Stack too deep” error. This error can occur when a function or contract **repeats itself recursively** too many times, or when functions have an **huge number of local variables, parameters, or return values**. It may also occur as a result of a **long chain of contract calls**.
+
+### Stack Underflow
+This error can appear when you call an opcode with less parameters that it expects to receive. For example `ADD` opcode expects 2 values, but if the stack size will be 0 or 1, the stack underflow will appear and execution will revert.
