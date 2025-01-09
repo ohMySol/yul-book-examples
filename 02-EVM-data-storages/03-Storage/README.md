@@ -7,6 +7,9 @@ This section will explain the 2nd storage location in EVM - **Storage**.
 * [How storage works?](#how-storage-works?)
 * [Storage Packed Values](#storage-packed-values)
 * [Storage Struct](#storage-struct)
+* [Fixed Array](#fixed-array)
+* [Dynamic Data](#dynamic-data)
+* [Dynamic Array](#dynamic-array)
 
 ## Storage Layout 
  - EVM storage(contracts storage) is a memory location where data is stored permanently. Once a function finish it's execution storage data won't be cleared out. 
@@ -253,5 +256,130 @@ contract StructStorage {
             owner := shr(64, s)                // shifting right 64 bits(8 bytes) to skip the 'num1' and 'num2' values and read the next 160 bits(20 bytes) representing 'owner'.
         }
     } 
+}
+```
+
+## Fixed Array
+The length of fixed-size arrays is not stored in storage. Solidity's compiler doesn't store metadata about fixed-size arrays because their size is predetermined.
+
+### Read from fixed array(32 bytes value)
+1. To get the slot where array element is stored - <ins>add slot where array is declared</ins> to <ins>index of the needed element</ins>.
+```
+contract ReadFixedArr {
+    uint256[3] fixedArray;
+    
+    constructor() {
+        fixedArray = [99, 999, 9999];
+    }
+    
+    function getFixedArrayElem(uint256 index) external view returns (uint256 e) {
+        assembly {
+            e := sload(add(fixedArray.slot, index)) // add slot of the fixed array to element index
+        }
+    }
+}
+
+```
+
+### Read from fixed array(less than 32 bytes value)
+1. If each element of fixed size array is less than 32 bytes, than they will be packed to a single slot.
+2. So in this `uin128[5] fixedArray = [7, 8, 9, 10, 11];` - 2 values fit in 1 slot.
+```
+contract ReadFixedArr {
+    uint128[5] fixedArray; // array stored in slot 0
+    
+    constructor() {
+        fixedArray = [7, 8, 9, 10, 11];
+    }
+    
+    function getFixedArrayElem(uint256 index) external view returns (uint128 e) {
+        assembly {
+            let slot := sload(add(0, div(index, 2)))  //we dividing i/2, because once index increased by 2, we should go to the next slot.
+            // Ex, we pass 0, 1 indexes - means slot 1 is passed. When we come to index 2 we already watching at slot 1, becasue 2/2=1
+            
+            // If the index is odd, extract the right 128 bits by shifting the storage slot 128 bits to the right
+            // If the index is even, the value is already in the left 128 bits, so no shifting is needed.
+            switch mod(index, 2)
+            case 1 { e := shr(128, slot) }
+            default { e := slot }
+        }
+    }
+}
+```
+
+## Dynamic Data
+1. When dealing with non-value types(dynamic arrays, byte arrays, strings) <ins>it is important to understand how EVM handles these types</ins>. They are stored and retrieved in a different way, and here is how:
+
+ - Those values are usually stored in 2 parts: **1st - their length** and **2nd the actual value**.
+ - The **length** of the dynamic data is stored at the slot where the variable is defined.
+ - The **data** starts from a computed slot derived from the hash of the starting slot.
+
+## Dynamic Array
+### Get length of the dynamic array
+1. Dynamic array length is stored in the slot where array is declared.
+```
+contract ReadFixedArr {
+    uint256[] dynaimicArray;
+    
+    constructor() {
+        dynamicArray = [10, 20, 30];
+    }
+    
+    function getArrayLength() external view returns (uint256 length) {
+        assembly {
+            length := sload(dynamicArray.slot) // return 3
+        }
+    }
+}
+
+```
+
+### Read from dynamic array(32 bytes value)
+Here the things become slightly more interesting. It is the same mechanism as for fixed array, but with keccak256().
+1. To get the slot where array element is stored - <ins>add keccak256 hash of the slot where array is declared</ins> to <ins>index of the needed element</ins>. Below will 2 examples how to do this.
+
+ - This is more easier and readable way, but it is not the best one, because we calculating hash in pure Solidity not in Yul.
+```
+contract ReadFixedArr {
+    uint256[] dynaimicArray;
+    
+    constructor() {
+        dynamicArray = [10, 20, 30];
+    }
+    
+    function getDynamicArrayElem(uint256 index) external view returns (uint256 res) {
+        uint256 slot;
+        assembly {
+            slot := dynaimicArray.slot                      // get `dynaimicArray` slot 
+        }
+        bytes32 location = keccak256(abi.encode(slot));     // calculate the hash of the slot where array is declared
+
+        assembly {
+            res := sload(add(location, index))              // add hash to the index of the element we need
+        }
+    }
+}
+```
+
+ - This is more advanced approach with Memory area usage. In the next section I'll explain how memory works.
+ - Briefly, here we basically receiving a free memory pointer, save to free memory our slot value(**this is basically = abi.encode(slot)**), then hash the slot value which we read from the memory in **keccak256()** instruction and in the end just simply add hashed slot to the index from the function argument.
+```
+contract ReadFixedArr {
+    uint256[] dynaimicArray;
+    
+    constructor() {
+        dynamicArray = [10, 20, 30];
+    }
+    
+    function getDynamicArrayElem(uint256 index) external view returns (uint256 res) {
+        assembly {
+            let slot := dynaimicArray.slot               // get `dynaimicArray` slot
+            let ptr := mload(0x40)                       // get the free memory pointer
+            mstore(ptr, slot)                            // store in free memory our slot value 
+            
+            let location := keccak256(ptr, 0x20)         // calculate hash of the slot
+            res := sload(add(location, index))           // add hash of the slot to element index and receive the element
+        }
+    }
 }
 ```
