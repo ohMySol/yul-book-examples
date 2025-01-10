@@ -11,6 +11,9 @@ This section will explain the 2nd storage location in EVM - **Storage**.
 * [Storage Dynamic Data](#storage-dynamic-data)
 * [Sorage Dynamic Array](#storage-dynamic-array)
 * [Storage Mapping](#storage-mapping)
+* [Storage Nested Mapping](#storage-nested-mapping)
+* [Storage Mapping To Dynamic Array](#storage-mapping-to-dynamic-array)
+* [How write to arrays and mappings?](#how-to-write-to-arrays-and-mappings?)
 
 ## Storage Layout 
  - EVM storage(contracts storage) is a memory location where data is stored permanently. Once a function finish it's execution storage data won't be cleared out. 
@@ -597,6 +600,31 @@ contract ReadMappingToList {
             let location := keccak256(add(ptr, 0x40), 0x20)    // calculate final location of the element we need to extract from the array which is value in mapping
 
             val := sload(add(location, index))                 // read value like previously in array
+        }
+    }
+}
+```
+
+## How write to arrays and mappings?
+You already know how to do this - just calculate the slot where you need to store you value, and instead of `sload()` opcode use `sstore()`.
+1. Wty to fo the next: write value to mapping and then check that value was written successfully(check read function in previous mapping sections).
+
+Mapping write example:
+```
+contract ReadMapping {
+    mapping(uint256 => uint256) public usualMapping;
+    
+    constructor() {
+        usualMapping[10] = 5;                                               // atm mapping has only 5 at key 10
+    }
+    
+    function storeValueToMapping(uint256 key, uint256 newVal) external {
+        assembly {
+            let ptr := mload(0x40)                                          // get free memory pointer
+            mstore(ptr, key)                                                // store new key in memory 
+            mstore(add(ptr, 0x20), usualMapping.slot)                       // store mapping slot in memory
+            let slot := keccak256(ptr, 0x40)                                // calculate the hash of the slot where to store new value
+            sstore(slot, newVal)                                            // write new value to previously calculated slot
         }
     }
 }
