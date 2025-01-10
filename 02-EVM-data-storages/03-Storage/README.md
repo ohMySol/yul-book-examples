@@ -207,7 +207,7 @@ Sum up the flow: load a packed slot value --> clear out a variable you would lik
 In storage structs we can have a **usual struct** and a **packed struct**. 
 
 ### Read Usual Struct
-1. Usual struct is stored as a usual 32 byte variables - in different slots. Struct values are stored one by one.
+1. Usual struct is stored as a usual 32 byte variable - in different slots. Struct values are stored one by one.
 ```
 contract StructStorage {
     struct UsualStruct {
@@ -225,15 +225,15 @@ contract StructStorage {
     function readUsualStruct() public view returns(uint256 x, uint256 y, address owner) {
         assembly {
             x := sload(0)     // load `num1` value from slot 0
-            y := sload(1)     // load `num2` value form slot 1
-            owner := sload(2) // load `owner` value form slot 2
+            y := sload(1)     // load `num2` value from slot 1
+            owner := sload(2) // load `owner` value from slot 2
         }
     } 
 }
 ```
 
 ### Read Packed Struct
-1. Packed struct is stored as a packed variables - in a single slot. We just shift right for the needed amount of bits, and read the next value from the struct.
+1. Packed struct is stored in a packed slot as a packed variable - in a single slot. We just shift right for the needed amount of bits, and read the next value from the struct.
 ```
 contract StructStorage {
     // | owner | num2 | num1 |  how value located in bytes array
@@ -283,7 +283,7 @@ contract ReadFixedArr {
 ```
 
 ### Read from fixed array(less than 32 bytes value)
-1. If each element of fixed size array is less than 32 bytes, than they will be packed to a single slot.
+1. If each element of a fixed size array is less than 32 bytes, then they will be packed to a single slot.
 2. So in this `uin128[5] fixedArray = [7, 8, 9, 10, 11];` - 2 values fit in 1 slot.
 ```
 contract ReadFixedArr {
@@ -317,7 +317,7 @@ contract ReadFixedArr {
 
 ## Storage Dynamic Array
 ### Get length of the dynamic array
-1. Dynamic array length is stored in the slot where array is declared.
+1. Dynamic array length is stored in the slot where the array is declared.
 ```
 contract ReadDynamicArr {
     uint256[] dynaimicArray;
@@ -336,10 +336,10 @@ contract ReadDynamicArr {
 ```
 
 ### Read from dynamic array(32 bytes value)
-Here the things become slightly more interesting. It is the same mechanism as for fixed array, but with keccak256().
-1. To get the slot where array element is stored - <ins>add keccak256 hash of the slot where array is declared</ins> to <ins>index of the needed element</ins>. Below will 2 examples how to do this.
+Here things become slightly more interesting. It is the same mechanism as for fixed array, but with keccak256().
+1. To get the slot where the array element is stored - <ins>add keccak256 hash of the slot where array is declared</ins> to <ins>index of the needed element</ins>. Below will be 2 examples how to do this.
 
- - This is more easier and readable way, but it is not the best one, because we calculating hash in pure Solidity not in Yul.
+ - This is a more easier and readable way, but it is not the best one, because we calculate hash in pure Solidity not in Yul.
 ```
 contract ReadDynamicArr {
     uint256[] dynaimicArray;
@@ -362,8 +362,8 @@ contract ReadDynamicArr {
 }
 ```
 
- - This is more advanced approach with Memory area usage. In the next section I'll explain how memory works.
- - Briefly, here we basically receiving a free memory pointer, save to free memory our slot value(**this is basically = abi.encode(slot)**), then hash the slot value which we read from the memory in **keccak256()** instruction and in the end just simply add hashed slot to the index from the function argument.
+ - This is a more advanced approach with Memory area usage. In the next section I'll explain how memory works.
+ - Briefly, here we basically receiving a free memory pointer, save to free memory our slot value(**this is basically = abi.encode(slot)**), then hash the slot value which we read from the memory in **keccak256()** instruction and in the end just simply add a hashed slot to the index from the function argument.
 ```
 contract ReadDynamicArr {
     uint256[] dynaimicArray;
@@ -386,9 +386,9 @@ contract ReadDynamicArr {
 ```
 
 ### Read from dynamic array(less than 32 bytes value)
-Here I am reading a packed value from dynamic array fully in Yul. In the beginning everything pretty much the same like with fixed array(free mem pointer, slot, hash), but after this we need to do a bit of more work to receive a value + remind a bit masking.
+Here I am reading a packed value from a dynamic array fully in Yul. In the beginning everything is pretty much the same as with a fixed array(free mem pointer, slot, hash), but after this we need to do a bit of more work to receive a value + remind a bit of masking.
 1. Each storage slot is 32 bytes (256 bits), and each uint8 takes 1 byte
-2. `let slotOffset := div(index, 32)` - a storage slot contains the index-th element.
+2. `let slotOffset := div(index, 32)` - a storage slot containing the index-th element.
 3. `let byteOffset := mod(index, 32)` - a  byte position of the index-th element within the slot.
 4. `packedData` - reads the storage slot containing the packed uint8 values.
 5. `val` - shifts the storage slot to the right, moving to the desired byte position + masks the result to extract only the desired byte (8 bits).
@@ -533,10 +533,49 @@ contract ReadNestedMapping {
 ## Storage Mapping To Dynamic Array
 1. If we will just hash the key + mapping slot, then we'll receive just a length of the array/list.
 2. So the steps we need to do to receive a slot of the value:
- - We need first hash the key and mapping slot.
- - Hash the previously produced hash. This will give us a location of the element in the aray.
- - Add hash to index you of the element you need.
+ - We need to hash the key and mapping slot.
+ - Hash the previously produced hash. This will give us a location of the element in the array.
+ - Add a hash to index you of the element you need.
  - Done
+ - 
+### Read from mapping to list
+1. Easy way:
+```
+contract ReadMappingToList {
+    mapping(address => uint256[]) public addressToList;
+    
+    constructor() {
+        addressToList[address(this)] = [42, 333, 444, 555];
+    }
+    
+    function getValueFromMappingAddrToList(uint256 index)
+        external
+        view
+        returns (uint256 val)
+    {
+        uint256 slot;
+        assembly {
+            slot := addressToList.slot          // get slot of the mapping
+        }
+
+        bytes32 location = keccak256(           // outer keccak256(inner hash)
+            abi.encode(
+                keccak256(                      // inner keccak256(key, mapping slot)
+                    abi.encode(
+                        address(this),
+                        uint256(slot)
+                    )
+                )
+            )
+        );
+        assembly {
+            val := sload(add(location, index))  // read value by adding calculated location to index of the array element we need
+        }
+    }
+}
+
+```
+2. Advanced way:
 ```
 contract ReadMappingToList {
     mapping(address => uint256[]) public addressToList;
