@@ -7,9 +7,10 @@ This section will explain the 2nd storage location in EVM - **Storage**.
 * [How storage works?](#how-storage-works?)
 * [Storage Packed Values](#storage-packed-values)
 * [Storage Struct](#storage-struct)
-* [Fixed Array](#fixed-array)
-* [Dynamic Data](#dynamic-data)
-* [Dynamic Array](#dynamic-array)
+* [Storage Fixed Array](#storage-fixed-array)
+* [Storage Dynamic Data](#storage-dynamic-data)
+* [Sorage Dynamic Array](#storage-dynamic-array)
+* [Storage Mapping](#storage-mapping)
 
 ## Storage Layout 
  - EVM storage(contracts storage) is a memory location where data is stored permanently. Once a function finish it's execution storage data won't be cleared out. 
@@ -259,7 +260,7 @@ contract StructStorage {
 }
 ```
 
-## Fixed Array
+## Storage Fixed Array
 The length of fixed-size arrays is not stored in storage. Solidity's compiler doesn't store metadata about fixed-size arrays because their size is predetermined.
 
 ### Read from fixed array(32 bytes value)
@@ -307,18 +308,18 @@ contract ReadFixedArr {
 }
 ```
 
-## Dynamic Data
+## Storage Dynamic Data
 1. When dealing with non-value types(dynamic arrays, byte arrays, strings) <ins>it is important to understand how EVM handles these types</ins>. They are stored and retrieved in a different way, and here is how:
 
  - Those values are usually stored in 2 parts: **1st - their length** and **2nd the actual value**.
  - The **length** of the dynamic data is stored at the slot where the variable is defined.
  - The **data** starts from a computed slot derived from the hash of the starting slot.
 
-## Dynamic Array
+## Storage Dynamic Array
 ### Get length of the dynamic array
 1. Dynamic array length is stored in the slot where array is declared.
 ```
-contract ReadFixedArr {
+contract ReadDynamicArr {
     uint256[] dynaimicArray;
     
     constructor() {
@@ -340,7 +341,7 @@ Here the things become slightly more interesting. It is the same mechanism as fo
 
  - This is more easier and readable way, but it is not the best one, because we calculating hash in pure Solidity not in Yul.
 ```
-contract ReadFixedArr {
+contract ReadDynamicArr {
     uint256[] dynaimicArray;
     
     constructor() {
@@ -364,7 +365,7 @@ contract ReadFixedArr {
  - This is more advanced approach with Memory area usage. In the next section I'll explain how memory works.
  - Briefly, here we basically receiving a free memory pointer, save to free memory our slot value(**this is basically = abi.encode(slot)**), then hash the slot value which we read from the memory in **keccak256()** instruction and in the end just simply add hashed slot to the index from the function argument.
 ```
-contract ReadFixedArr {
+contract ReadDynamicArr {
     uint256[] dynaimicArray;
     
     constructor() {
@@ -379,6 +380,184 @@ contract ReadFixedArr {
             
             let location := keccak256(ptr, 0x20)         // calculate hash of the slot
             res := sload(add(location, index))           // add hash of the slot to element index and receive the element
+        }
+    }
+}
+```
+
+### Read from dynamic array(less than 32 bytes value)
+Here I am reading a packed value from dynamic array fully in Yul. In the beginning everything pretty much the same like with fixed array(free mem pointer, slot, hash), but after this we need to do a bit of more work to receive a value + remind a bit masking.
+1. Each storage slot is 32 bytes (256 bits), and each uint8 takes 1 byte
+2. `let slotOffset := div(index, 32)` - a storage slot contains the index-th element.
+3. `let byteOffset := mod(index, 32)` - a  byte position of the index-th element within the slot.
+4. `packedData` - reads the storage slot containing the packed uint8 values.
+5. `val` - shifts the storage slot to the right, moving to the desired byte position + masks the result to extract only the desired byte (8 bits).
+```
+contract ReadDynamicArr {
+    uint8[] dynaimicArray;
+    
+    constructor() {
+        dynamicArray = [1, 2, 3];
+    }
+    
+    function readArrayWithPackedValue(uint256 index) external view returns (uint8 val) {
+            assembly {
+                let slot := smallArray.slot
+                let ptr := mload(0x40)
+                mstore(ptr, slot)
+                
+                let location := keccak256(ptr, 0x20)
+                
+                let slotOffset := div(index, 32)                        // The storage slot containing the packed value
+                let byteOffset := mod(index, 32)                        // The byte within the slot
+    
+                let packedData := sload(add(location, slotOffset))      // Load the Packed Slot
+                val := and(shr(mul(byteOffset, 8), packedData), 0xff)   // Extract the value      
+            }
+        }
+}
+```
+
+## Storage Mapping
+1. To get the slot where the mapping value is stored you need to calculate the keccak256 hash of the <ins>mapping key</ins> + <ins>slot where the mapping is declared</ins>.  
+
+### Read from mapping
+1. Easy way:
+```
+contract ReadMapping {
+    mapping(uint256 => uint256) public usualMapping;
+    
+    constructor() {
+        usualMapping[10] = 5;
+    }
+    
+    function getMapping(uint256 key) external view returns (uint256 val) {
+        uint256 slot;
+        assembly {
+            slot := usualMapping.slot                                   // get mapping slot
+        }
+
+        bytes32 location = keccak256(abi.encode(key, uint256(slot)));   // calculate the hass of the value location(keccak256(key, mapping slot))
+
+        assembly {
+            val := sload(location)                                      // read value
+        }
+    }
+}
+```
+
+2. Advanced way:
+```
+contract ReadMapping {
+    mapping(uint256 => uint256) public usualMapping;
+    
+    constructor() {
+        usualMapping[10] = 5;
+    }
+    
+    function getValueFromMapping(uint256 key) external view returns(uint256 val) {
+        assembly {
+            let ptr := mload(0x40)                      // get free memory pointer
+            mstore(ptr, key)                            // store key in memory
+            mstore(add(ptr, 0x20), usualMapping.slot)   // store mapping slot in memory
+            let slot := keccak256(ptr, 0x40)            // calculate hash 
+            val := sload(slot)                          // read value
+        }   
+    }
+}
+```
+
+## Storage Nested Mapping
+1. To get value from nested mapping we follow the next formula: keccak256(2nd key, keccak256(1st key, mapping slot)). Looks a bit complicated, but in simple words:
+ - 1st step - we do a usual hash from <ins>mapping 1st key</ins> + <ins>slot where the mapping is declared</ins>.
+ - 2nd step we do a hash from <ins>mapping 2nd key</ins> + <ins>hash we calculated in the 1st step</ins>.
+ - Done
+
+### Read from nested mapping
+1. Easy way:
+```
+contract ReadNestedMapping {
+    mapping(uint256 => mapping(uint256 => uint256)) public nestedMapping;
+    
+    constructor() {
+        nestedMapping[10][77] = 123;
+    }
+    
+    function getValueFromNestedMapping() external view returns (uint256 val) {
+        uint256 slot;
+        assembly {
+            slot := nestedMapping.slot                              // get nested mapping slot
+        }
+
+        bytes32 location = keccak256(                               // outer hash keccak256(key 2, inner hash)
+            abi.encode(
+                uint256(77),                                        
+                keccak256(abi.encode(uint256(10), uint256(slot)))   // inner hash keccak256(key 1, mapping slot)
+            )
+        );
+        assembly {
+            val := sload(location)                                  // read value
+        }
+    }
+}
+```
+
+2. Advanced way:
+```
+contract ReadNestedMapping {
+    mapping(uint256 => mapping(uint256 => uint256)) public nestedMapping;
+    
+    constructor() {
+        nestedMapping[10][77] = 123;
+    }
+    
+    function getValueFromNestedMapping(uint256 key_1, uint256 key_2) external view returns(uint256 val) {
+        assembly {
+            let ptr := mload(0x40)                           // set free mem pointer
+            mstore(ptr, key_1)                               // store in memory 1st key
+            mstore(add(ptr, 0x20), nestedMapping.slot).      // store in memory slot of the nested mapping
+            
+            let hash_1 := keccak256(ptr, 0x40)               // this is a calculation of the 1st hash which is inside the main hash | calculating hash from key_1 + nested mapping slot
+             
+            mstore(add(ptr, 0x40), key_2)                    // store in memory 2nd key
+            mstore(add(ptr, 0x60), hash_1)                   // store in memory 1st hash
+            
+            let location := keccak256(add(ptr, 0x40), 0x40)  // calculate final location of the slot from which we will return a value | calculating hash from key_2 + 1st hash
+            
+            val := sload(location)                           // read value
+        }   
+    }
+}
+```
+
+## Storage Mapping To Dynamic Array
+1. If we will just hash the key + mapping slot, then we'll receive just a length of the array/list.
+2. So the steps we need to do to receive a slot of the value:
+ - We need first hash the key and mapping slot.
+ - Hash the previously produced hash. This will give us a location of the element in the aray.
+ - Add hash to index you of the element you need.
+ - Done
+```
+contract ReadMappingToList {
+    mapping(address => uint256[]) public addressToList;
+    
+    constructor() {
+        addressToList[address(this)] = [42, 333, 444, 555];
+    }
+    
+    function getValueFromMappingAddrToList(address key, uint256 index) external view returns(uint256 val) {
+        assembly {
+            let ptr := mload(0x40)                             // get free mem pointer
+            mstore(ptr, key)                                   // store in memory key
+            mstore(add(ptr, 0x20), addressToList.slot)         // store in memory slot of the mapping
+            
+            let hash_1 := keccak256(ptr, 0x40)                 // if we will have only this hash(this hash-location will return the dynamic array length and that's it)
+            
+            mstore(add(ptr, 0x40), hash_1)                     // store in memory 1st hash
+            
+            let location := keccak256(add(ptr, 0x40), 0x20)    // calculate final location of the element we need to extract from the array which is value in mapping
+
+            val := sload(add(location, index))                 // read value like previously in array
         }
     }
 }
