@@ -5,8 +5,9 @@ This section will explain the 3rd memory location in EVM - **Memory**.
 * [Memory Layout](#memory-layout)
 * [Memory gas cost](#memory-gas-cost)
 * [How memory works?](#how-memory-works?)
-* [Memory for Arrays](#memory-for-arrays)
+* [Memory for Variables](#memory-for-variables)
 * [Memory for Structs](#memory-for-structs)
+* [Memory for Arrays](#memory-for-arrays)
 * [Dynamic Data in Memory](#dynamic-data-in-memory)
 * [Copying Between Memory and Storage](#copying-between-memory-and-storage)
 * [Optimising Memory Usage](#optimising-memory-usage)
@@ -39,22 +40,6 @@ Memory illustration: ⬇️
 **For more information, see [this article](https://learnevm.com/chapters/evm/memory).**
 
 ## How memory works?
-### Memory Slots
-- Memory operates in a sequential manner, with slots indexed by word (32 bytes). This means that Read/Write operation in memory happens in chunks of 32 bytes. EVM uses 32 bytes memory slots, so values are always encoded in 32 bytes.
-- Values stored in memory are еemporary and persist only during transaction execution.
-
-Basic example of writing to memory:
-```
-contract MemoryExample {
-    function example() external pure returns (uint256) {
-        assembly {
-            let ptr := mload(0x40) // Get the free memory pointer
-            mstore(ptr, 123)       // Store 123 at the pointer location
-            return(ptr, 0x20)      // Return the 32-byte value
-        }
-    }
-}
-```
 
 ### Memory Special Areas
 1. `0x00` - `0x20` - first 64 bytes is a scratch space. Can be used to store anything here. For ex. you don't want to get a free memory pointer, so you can quickly store smth in the scratch space with less computations.
@@ -62,3 +47,75 @@ contract MemoryExample {
 Initially free memory pointer points to 32 bytes starting from the `0x80` location.
 3. `0x60` - zero slot.
 4. `0x80` - initial free memory starts here.
+
+### MLOAD, MSTORE, MSTORE8, MSIZE, MCOPY
+1. [MLOAD](https://www.evm.codes/?fork=cancun#51) - reads 32 bytes(256 bits) from memory starting from a specified location. `mload(0x40)` - reads 32 bytes starting from 0x40 memory location, and returnes a value stored in these 32 bytes(free memory pointer is returned).
+2. [MSTORE](https://www.evm.codes/?fork=cancun#52) - writes 32 bytes(256 bits) to memory at starting from a specified location. `mstore(0x80, 22)` - write value 22, starting from 0x80 memory location.
+3. [MSTORE8](https://www.evm.codes/?fork=cancun#53) - writes 1 byte(8 bits) to memory starting from a specified location.
+4. [MSIZE](https://www.evm.codes/?fork=cancun#59) - returns the size of the allocated memory (in bytes).
+```
+// Initially, MSIZE returns 0 because no memory beyond 0x80 is allocated.
+// After storing data at start, memory size increases to at least 0xA0 (since 0x12345678 occupies one 32-byte word starting at 0x80).
+{
+    let start := mload(0x40)       // Get the free memory pointer (initially 0x80)
+    mstore(start, 0x12345678)      // Store some data at `start`
+
+    let memSize := msize()         // Get the current memory size
+
+    log1(0, 0, memSize)            // Log memory size (rounded to nearest 32 bytes)
+}
+```
+5. [MCOPY](https://www.evm.codes/?fork=cancun#5e) - copies a specified number of bytes from one memory region to another.
+```
+assembly {
+    let src := 0x40             // Source memory location
+    let dest := 0xA0            // Destination memory location
+    let length := 0x20          // Number of bytes to copy (32 bytes)
+
+                                // Write some data to the source memory
+    mstore(src, 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef)
+
+    mcopy(dest, src, length)    // Copy data from `src` to `dest`
+
+}
+```
+
+### How to count in memory ?
+1. Memory operates in a sequential manner, with slots indexed by word (32 bytes). This means that Read/Write operation in memory happens in chunks of 32 bytes. EVM uses 32 bytes memory slots, so values are always encoded in 32 bytes.
+2. `0x20` = 32 bytes. So when you see for ex `mload(add(0x80, 0x20))` - this means that we firstly add 32 bytes(0x20) to `0x80` to jump to the next memory location `0xA0`, and secondly we read 32 bytes from `0xA0`.
+3. When you add memory locations like 0x80 + 0x20, the calculation is performed as hexadecimal addition:
+```
+   0x80
++  0x20
+-------
+   0xA0
+```
+
+## Memory for Variables
+
+### Write to memory variable
+1. As u already know we do this with `mstore(p, v)`, where `p` - position in memory start writing from, and `v` - is our value to write.
+```
+contract WriteToMemory {
+    function writeToMem() external pure{
+       assembly {
+            mstore(0x00, 123)   // store `123` value in memory scratch space
+       }
+    }
+}
+```
+
+### Read from memory variable
+1. To read variable we do `mload(p)`, where `p` - position in memory start reading from.
+```
+contract ReadFromMemory {
+    function readFromMem() external pure returns (uint256 val) {
+        assembly {
+            mstore(0x00, 123)   // store `123` value in memory scratch space
+            val := mload(0x00)  // read 32 bytes starting from 0x00 mem location
+        }
+    }
+}
+```
+
+## Memory for Structs
