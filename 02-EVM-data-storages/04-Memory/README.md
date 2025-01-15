@@ -7,7 +7,7 @@ This section will explain the 3rd memory location in EVM - **Memory**.
 * [How memory works?](#how-memory-works?)
 * [Memory for Variables](#memory-for-variables)
 * [Memory for Structs](#memory-for-structs)
-* [Memory for Arrays](#memory-for-arrays)
+* [Memory for Fixed Arrays](#memory-for-fixed-arrays)
 * [Dynamic Data in Memory](#dynamic-data-in-memory)
 * [Copying Between Memory and Storage](#copying-between-memory-and-storage)
 * [Optimising Memory Usage](#optimising-memory-usage)
@@ -97,7 +97,7 @@ assembly {
 1. As u already know we do this with `mstore(p, v)`, where `p` - position in memory start writing from, and `v` - is our value to write.
 ```
 contract WriteToMemory {
-    function writeToMem() external pure{
+    function writeToMem() external pure {
        assembly {
             mstore(0x00, 123)   // store `123` value in memory scratch space
        }
@@ -119,3 +119,91 @@ contract ReadFromMemory {
 ```
 
 ## Memory for Structs
+
+### Write to memory struct
+1. Remember that data in memory stored in 32 bytes chunks, so we just write to different chunks new data one by one.
+```
+contract WriteToStruct {
+    struct Point {
+      uint256 a;
+      uint32 b;
+      uint32 c;
+    }
+
+    function writeToStruct() external pure returns(uint256 a, uint32 b, uint32 c) {
+        Point memory point;     // struct is declared in free memory -> 0x80(because we just start using memory) 
+        
+        assembly {
+            mstore(0x80, 12)   // store `12` in 0x80 location.
+            mstore(0xa0, 15)   // store `15` in the next 32 bytes | 0xa0 = add(0x80, 0x20)
+            mstore(0xc0, 20)   // store `20` in the next 32 bytes | 0xc0 = add(0xa0, 0x20)
+        }
+
+        // check that values are successfully stored
+        a = point.a;
+        b = point.b;
+        c = point.c;
+    }
+}
+```
+
+### Read from memory struct
+1. The same goes here, when we will load smth from memory we read it in 32 bytes chunks.
+```
+contract ReadFromStruct {
+    struct Point {
+      uint256 a;
+      uint32 b;
+      uint32 c;
+    }
+
+    function readFromStruct() public pure returns (uint256 a, uint256 b, uint256 c) {
+        Point memory point = Point({a: 1, b: 2, c: 3}); // memory struct is declared in free memory -> 0x80
+        
+        assembly {
+            a := mload(0x80)    // load the first 32 bytes starting from 0x80
+            b := mload(0xa0)    // load the next 32 bytes starting from 0xa0 = add(0x80, 0x20)
+            c := mload(0xc0)    // load the next 32 bytes starting from 0xc0 = add(0xa0, 0x20)
+        }
+    }
+}
+```
+
+## Memory for Fixed Arrays
+
+### Write to memory fixed array
+1. Here the same rules as for memory structs. In storage fixed array we won't have array length stored somewhere, because obviously we know array length in advance.
+```
+contract WriteToFixedArray {
+    function writeToFixedArr() external pure returns(uint256 a, uint256 b, uint256 c) {
+        uint256[3] memory arr; // memory fixed array is declared in free memory -> 0x80 
+        
+        assembly {
+            mstore(0x80, 123)  // store `123` in 0x80 location.
+            mstore(0xa0, 456)  // store `456` in the next 32 bytes | 0xa0 = add(0x80, 0x20)
+            mstore(0xc0, 789)  // store `789` in the next 32 bytes | 0xc0 = add(0x80, 0x20)
+        }
+        
+        // check that values are successfully stored
+        a = arr[0];
+        b = arr[1];
+        c = arr[2];
+    }
+}
+```
+
+### Read from memory fixed array
+1. Here the same rules as for memory structs.
+```
+contract ReadFromFixedArray {
+    function readFromFixedArr() external pure returns(uint256 a, uint256 b, uint256 c) {
+        uint96[3] memory arr = [uint96(33), uint96(22), uint96(77)]; // memory fixed array is declared in free memory -> 0x80 
+        
+        assembly {
+            a := mload(0x80)  // load the first 32 bytes starting from 0x80
+            b := mload(0xa0)  // load the next 32 bytes starting from 0xa0 = add(0x80, 0x20)
+            c := mload(0xc0)  // load the next 32 bytes starting from 0xc0 = add(0xa0, 0x20)
+        }
+    }
+}
+```
