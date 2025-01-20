@@ -14,7 +14,7 @@ On this page I've collected useful EVM/Yul resources which might be useful for y
 5. [Playing with Yul](https://medium.com/angle-protocol/playing-with-yul-cd4785e456d8)
 More read resources you can find [here](https://www.devpill.me/docs/smart-contract-development/evm-deep-dive/)
 
-## EVM Read Resources
+## EVM Video Resources
 1. [Smart Contract Programmer](https://www.youtube.com/watch?v=vTeav5Rinco&list=PLO5VPQH6OWdVKZKJtTGTB10dDXyMVvPR5)
 2. [Owen Thurm](https://www.youtube.com/@0xOwenThurm)
 3. [Reanblock](https://www.youtube.com/watch?v=JQ-uSq-HhSU&list=PLkqz4ywkYlzc8ofRCO7MHV6NXOVgPyrJq)
