@@ -12,8 +12,6 @@ This section will explain the 3rd memory location in EVM - **Memory**.
 * [Memory for Return, Revert, Keccak256](#memory-for-return-revert-keccak256)
 * [Logs](#logs)
 * [Common memory mistakes](#common-memory-mistakes)
-* [Copying Between Memory and Storage](#copying-between-memory-and-storage)
-
 
 ## Memory Layout
 - EVM memory is a volatile memory area used during contract execution. Once a function execution is completed, the memory is cleared.
