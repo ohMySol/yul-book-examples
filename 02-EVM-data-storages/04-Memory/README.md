@@ -11,7 +11,7 @@ This section will explain the 3rd memory location in EVM - **Memory**.
 * [Memory for Dynamic Arrays](#memory-for-dynamic-arrays)
 * [Memory for Return, Revert, Keccak256](#memory-for-return-revert-keccak256)
 * [Logs](#logs)
-* [Common memory mistakes](#common-memory-mistakes)
+* [Common Memory Mistakes](#common-memory-mistakes)
 
 ## Memory Layout
 - EVM memory is a volatile memory area used during contract execution. Once a function execution is completed, the memory is cleared.
@@ -435,7 +435,7 @@ contract LogEvent {
     ]
 ```
 
-## Common memory mistakes
+## Common Memory Mistakes
 
 ### Overwriting existing data
 1. In memory if you don’t reallocate or update the free memory pointer in Yul after using memory, you risk overwriting existing data or corrupting memory when the next operation requiring memory allocation is performed. This can lead to unexpected behavior.
