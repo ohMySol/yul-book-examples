@@ -87,9 +87,42 @@ contract Example {
 }
 ```
 
- - When we do a call to the above dunction the calldata for this function will be the next:
+ - When we do a call to the above function the calldata for this function will be the next:
  ```
  0xb7760c8f - function selector
  000000000000000000000000000000000000000000000000000000004d866d92 |0x00| - 1st input parameter uint256 `amount`
  00000000000000000000000068b3465833fb72a70ecdf485e0e4c7bd8665fc45 |0x20| - 2nd input parameter address `to`
  ```
+
+###  Dynamic Types
+Dynamic types are the next: `bytes`, `string`, and `dynamic arrays`.
+1. They are encoded and stored in the next way:
+ - **offset**. Offset - is a hexadecimal position where the data begins.
+ - **dynamic data length**. Once we reach our offset the 1st what we will find is a length of our dynamic value. For arrays - this is a number of elements in the array. For bytes and strings - it represents the length of the type.
+ - after the length is actual data(parameters values).
+ 
+Example 1:
+ ```
+ // This is a function for which we would like to know a call data
+ // Input values are: 7, [1,2,3], 9
+ function threeArgs(uint256 a, uint256[] calldata b, uint256 c) external {}
+ ```
+Then a calldata will be the next(I already formatted it):
+```
+// 0xc6f922d - func selector
+// 0000000000000000000000000000000000000000000000000000000000000007 |0x00| - 1st input value started after the func selector
+// 0000000000000000000000000000000000000000000000000000000000000060 |0x20| - offset(pointer to where the length and the dynamic data is stored)
+// 0000000000000000000000000000000000000000000000000000000000000009 |0x40| - 2nd input value 
+// 0000000000000000000000000000000000000000000000000000000000000003 |0x60| - length of our dynamic array from input
+// 0000000000000000000000000000000000000000000000000000000000000001 |0x80| - b[0] value
+// 0000000000000000000000000000000000000000000000000000000000000002 |0xa0| - b[1] value
+// 0000000000000000000000000000000000000000000000000000000000000003 |0xc0| - b[2] value
+```
+
+Example 2: \
+`Hello World!` - get a calldata for this string👇
+```
+0000000000000000000000000000000000000000000000000000000000000020 |0x00| - offset(points to 0x20 area where the length and actual value are stored)
+000000000000000000000000000000000000000000000000000000000000000c |0x20| - length of the string in hex(12)
+48656c6c6f20576f726c64210000000000000000000000000000000000000000 |0x40| - string itself in hex
+```
