@@ -14,6 +14,7 @@ This section will explain the 2nd storage location in EVM - **Storage**.
 * [Storage Nested Mapping](#storage-nested-mapping)
 * [Storage Mapping To Dynamic Array](#storage-mapping-to-dynamic-array)
 * [How write to arrays and mappings?](#how-to-write-to-arrays-and-mappings?)
+* [Common Storage Mistakes](#common-storage-mistakes)
 
 ## Storage Layout 
  - EVM storage(contracts storage) is a memory location where data is stored permanently. Once a function finish it's execution storage data won't be cleared out. 
@@ -340,7 +341,7 @@ contract ReadDynamicArr {
 
 ### Read from dynamic array(32 bytes value)
 Here things become slightly more interesting. It is the same mechanism as for fixed array, but with keccak256().
-1. To get the slot where the array element is stored - <ins>add keccak256 hash of the slot where array is declared</ins> to <ins>index of the needed element</ins>. Below will be 2 examples how to do this.
+1. To get the slot where the array element is stored - <ins>add keccak256 hash of the slot where array is declared</ins> to <ins>index of the needed element</ins>. Below will be 2 examples of how to do this.
 
  - This is a more easier and readable way, but it is not the best one, because we calculate hash in pure Solidity not in Yul.
 ```
@@ -606,8 +607,8 @@ contract ReadMappingToList {
 ```
 
 ## How write to arrays and mappings?
-You already know how to do this - just calculate the slot where you need to store you value, and instead of `sload()` opcode use `sstore()`.
-1. Wty to fo the next: write value to mapping and then check that value was written successfully(check read function in previous mapping sections).
+You already know how to do this - just calculate the slot where you need to store your value, and instead of `sload()` opcode use `sstore()`.
+1. What to do the next: write value to mapping and then check that value was written successfully(check read function in previous mapping sections).
 
 Mapping write example:
 ```
@@ -629,3 +630,70 @@ contract ReadMapping {
     }
 }
 ```
+
+## Common Storage Mistakes
+
+### Overwriting data in the slot
+1. Solidity automatically assigns storage slots to state variables when you declare a new variable, but when writing to any slot in Yul, you should always keep in mind a layout of your contract storage when writing to an arbitrary slot. It is quite easy to overwrite the original data in the slot. \
+Example when you declared first a function in Yul, and later decided to add some storage variable and forgot about contract storage layout:
+ - In the code below we have a contract which calculates the sum of 2 numbers and stores the result in the `result` variable. All good atm.
+```
+contract UsualContract {
+    uint256 public a = 22;  // slot 0 
+    uint256 public b = 30;  // slot 1
+    uint256 public result;  // slot 2
+
+    function sum() external {
+        assembly {
+            let A := sload(a.slot)  
+            let B := sload(b.slot)
+            sstore(2, add(A, B))    // store sum result in `result` variable
+        }
+    }
+}
+```
+ - For some reason you decided to add a new variable `totalOperationsDone` to calculate the count of calls of the `sum()` function. You add the `totalOperationsDone` before the `results` variable. Plus you forgot to change the slot number where you will write a result of your operation. As a result you will write a result of your operation in `totalOperationsDone` and this will be a critical bug.
+ ```
+ contract BrokenContract {
+    uint256 public a = 22;               // slot 0
+    uint256 public b = 30;               // slot 1
+    uint256 public totalOperationsDone;  // slot 2 | Add variable to slot 2 and move result to slot 3
+    uint256 public result;               // slot 3
+
+    function sum() external {
+        assembly {
+            let A := sload(a.slot)  
+            let B := sload(b.slot)
+            sstore(2, add(A, B))         // due to mistake in storage layout, the sum will be stored in `totalOperationsDone`, not in the `result`
+        }
+        totalOperationsDone += 1;        // expects that `totalOperationsDone` will increase after every `sum()` call, but on practice it will be overwritten each time to 53
+    }
+}
+ ```
+2. Conclusion: 
+ - Always keep in mind your storage layout.
+ - I would recommend using the `.slot` method when possible, to avoid writing to incorrect slots.
+
+### Writing incorrect data type in the slot
+1. In Solidity you at least have a data type checks and you won't be able to write to `uint` variable a `string`, but in Yul you can. In Yul you don't have data type checks and incorrect assignment can lead to critical bugs.\
+Example, when accidentally assign a string instead of uint:
+```
+contract BrokenStorage2 {
+    uint256 public a = 22;          // after `sum()` func is executed, `a` is storing a broken value(22252023922882658565525207896905291916629407203809125848297821787814667223040)
+    uint256 public b = 30;
+
+    function sum() external returns(uint256 res) {
+        assembly {
+            let A := sload(a.slot)
+            let B := sload(b.slot)
+            
+            sstore(a.slot, "123")   // assigning a `string` instead of `uint`
+            
+            res := add(A, B)        // first call will be okay, but all other calls to this function will return a broken result
+        }
+    }
+}
+```
+2. Conclusion: 
+ - Always keep in mind that in Yul you are responsible for everything(including data types), because the number of helpers are minimal. 
+ - Always think about what you assign to a storage variable.
