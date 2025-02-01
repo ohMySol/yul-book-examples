@@ -489,8 +489,8 @@ contract MemoryArrayUnpack {
 }
 ```
 
-### Assembly Return holds execution
-1. Be careful with **assembly return**, because it will hold(stop) an execution of your program and everything after `return()` opcode will be ignored. Pretty obvious because usual Solidity `return()` does the same.  
+### Assembly Return != Return in Solidity(1st example)
+1. Be careful with **assembly return**, because it will stop an execution of your program and everything after `return()` opcode will be ignored.
 I am mentioning this, because sometimes you want to continue your code in Solidity and forget about the `return()` opcode in your Yul block. So this can also lead to bugs and unexpected behaviour.
 2. The return opcode signifies the end of the current execution context:
 
@@ -514,3 +514,57 @@ contract MemoryReturnBug {
         return(123, 456);                        // this line won't be reached by evm, because it will stop on return from assembly block, and you will receive 11, 12 instead of 123, 456
     }
 ```
+
+### Assembly Return != Return in Solidity(2nd example with modifier)
+In the previous example I talked about return in Yul within the usual function. Let's jump to another example with Yul and modifier. <ins>In Solidity, after the return modifier continues execution</ins>.<ins>Yul return terminates immediately, so for example reentrancy lock will never unlock</ins>. Check the below examples:
+ - Example with usual Solidity
+ 1. Solidity won't terminate immediately when execution comes to return. Instead it will push to the stack 0x42 value to return it in the future.
+ 2. Then `_status` will be set to `NOT_ENTERED`.
+ 3. And only after the status update Solidity will return 0x42 back to you and stop execution.
+ ```
+ contract Test {
+   uint256 private constant NOT_ENTERED = 1;                            // means function execution is not in process
+   uint256 private constant ENTERED = 2;                                // means function execution is in process
+
+   uint256 public _status = 1;                                          // initially execution is in `NOT_ENTERED` status
+
+   modifier nonReentrant() {
+    require(_status == ENTERED, "Alredy entered!");                     // check if the function execution is still going
+
+    _status = ENTERED;                                                  // if function is not executing, lock the execution flow first
+    _;                                                                  // execute function
+    _status = NOT_ENTERED;                                              // unlock the execution flow
+   } 
+
+   function testSolidityReturn() public nonReentrant returns(uint256) { 
+        return 0x42;                                                    // 
+   }
+}
+ ```
+ - Example with Yul
+ 1. As already mentioned, Yul `return` will terminate immediately after `return()` instruction.
+ 2. `_status` won't be changed back to `NOT_ENTERED`, and instead it will be locked forever in `ENTERED`. This is because Yul doesn't see any other instructions after return.
+ 3. This means that all the functions using `nonReentrant` modifier will be locked and users won't be able to use them, because functions will simply revert each time.
+ ```
+ contract Test {
+   uint256 private constant NOT_ENTERED = 1;                            // means function execution is not in process
+   uint256 private constant ENTERED = 2;                                // means function execution is in process
+
+   uint256 public _status = 1;                                          // initially execution is in `NOT_ENTERED` status
+
+   modifier nonReentrant() {
+    require(_status == ENTERED, "Alredy entered!");                     // check if the function execution is still going
+
+    _status = ENTERED;                                                  // if function is not executing, lock the execution flow first
+    _;                                                                  // execute function
+    _status = NOT_ENTERED;                                              // unlock the execution flow
+   } 
+
+   function testYulReturn() public nonReentrant returns(uint256) {
+        assembly {
+            mstore(0x00, 123)                                           // store 0x42 in 0x00 scratch space
+            return(0x00, 0x42)                                          // return 32 bytes(0x20) starting from 0x00 memory location | execution will stop here and `_status` will be ENTERED forever
+        }
+   }
+}
+ ```
