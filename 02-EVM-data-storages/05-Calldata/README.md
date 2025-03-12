@@ -7,11 +7,7 @@ This section will explain the **Calldata** memory area in the EVM.
 * [Calldata vs Memory](#calldata-vs-memory)
 * [How Calldata Works?](#how-calldata-works)
 * [Calldata Types](#calldata-types)
-* [Calldata for Structs](#calldata-for-structs)
-* [Calldata for Fixed Arrays](#calldata-for-fixed-arrays)
-* [Calldata for Dynamic Arrays](#calldata-for-dynamic-arrays)
-* [Gas Costs of Calldata](#gas-costs-of-calldata)
-* [Common Calldata Mistakes](#common-calldata-mistakes)
+* [External Calls](#external-calls)
 * [Copying Between Calldata and Memory](#copying-between-calldata-and-memory)
 
 ## Calldata Overview
@@ -125,4 +121,195 @@ Example 2: \
 0000000000000000000000000000000000000000000000000000000000000020 |0x00| - offset(points to 0x20 area where the length and actual value are stored)
 000000000000000000000000000000000000000000000000000000000000000c |0x20| - length of the string in hex(12)
 48656c6c6f20576f726c64210000000000000000000000000000000000000000 |0x40| - string itself in hex
+```
+
+## Extenal Calls
+Below is several examples of extenal calls done with the help of inline assembly.
+This is the contract which I will try to call:
+```
+contract OtherContract {
+    // "0c55699c": "x()"
+    uint256 public x;
+
+    // "71e5ee5f": "arr(uint256)"
+    uint256[] public arr;
+
+    // "9a884bde": ""get21()"
+    function get21() external pure returns (uint256) {
+        return 21;
+    }
+
+    // "73712595": "revertWith999()"
+    function revertWith999() external pure returns (uint256) {
+        assembly {
+            mstore(0x00, 999)
+            revert(0x00, 0x20)
+        }
+    }
+
+    // "196e6d84": "multiply(uint128,uint16)",
+    function multiply(uint128 _x, uint16 _y) external pure returns (uint256) {
+        return _x * _y;
+    }
+
+    // "4018d9aa": "setX(uint256)"
+    function setX(uint256 _x) external {
+        x = _x;
+    }
+
+    // "7c70b4db": "variableReturnLength(uint256)",
+    function variableReturnLength(uint256 len)
+        external
+        pure
+        returns (bytes memory)
+    {
+        bytes memory ret = new bytes(len);
+        for (uint256 i = 0; i < ret.length; i++) {
+            ret[i] = 0xab;
+        }
+        return ret;
+    }
+}
+
+```
+
+1. External call to a view function:
+```
+function externalViewCallNoArgs(address _a) external view returns (uint256) {
+    assembly {
+        mstore(0x00, 0x9a884bde)    // store selector of the function we want to call
+        // 000000000000000000000000000000000000000000000000000000009a884bde
+        //                                                         |       |
+        //                                                         28      32
+        let res := staticcall(
+            gas(),                  // How much gas we want to pass to function we want to call. In our case we pass all the remaining gas, that we have after execution of the `externalViewCallNoArgs` func. But we also can hardcode value to our own one.
+            _a,                     // Address of the contract we are calling.
+            28,                     // Argument offset in bytes, or in simple words, where the data starts including selector.
+            32,                     // Argument size in bytes.
+            0x00,                   // Memory area where to start write a return value from external call
+            0x20                    // Size or the returned data.
+        )
+        
+        if iszero(res) {            // Check if the received data is not 0
+                revert (0, 0)       
+        }
+        
+        return(0x00, 0x20)          // Return back the results from external call
+    }
+}
+```
+
+2. Get value through external revert.
+Yes it is possible to return a value through a function which reverts.
+```
+function getValueThroughRevert(address _a) external view returns (uint256) {
+        assembly {
+            mstore(0x00, 0x73712595)    // Store in memory function selector
+            pop(                        // Do a staticcall and remove a returned result from the stack(means return 0 from the stack)
+                staticcall(
+                    gas(), 
+                    _a, 
+                    28, 
+                    32, 
+                    0x00, 
+                    0x20
+                )
+            ) 
+            return(0x00, 0x20)          // Return data received from revert
+        }
+    }
+```
+
+3. Call external multiply function.
+```
+    function externalCallMultiply(address _a) external view returns (uint256 result) {
+    assembly {
+        let ptr := mload(0x40)
+        let oldPtr := ptr
+        mstore(ptr, 0x196e6d84)
+        mstore(add(ptr, 0x20), 3)
+        mstore(add(ptr, 0x40), 11)
+        mstore(0x40, add(oldPtr, 0x60))
+        //  00000000000000000000000000000000000000000000000000000000196e6d84
+        //                                                          |
+        //                                                          add(oldPtr, 28)
+        //  0000000000000000000000000000000000000000000000000000000000000003
+        //  000000000000000000000000000000000000000000000000000000000000000b
+        //                                                                 |
+        //                                                                 0x40 pointer
+        
+        let res := staticcall(
+            gas(),
+            _a,
+            add(oldPtr, 28),    // The first 4 bytes of the calldata (function selector) need to be extracted starting from the 28th byte within the memory block.
+            mload(0x40),        // The updated free memory pointer tells EVM the total length of calldata, load memory location boundary to let EVM know where to search for args, so we starting from 28th byte of the 1st 32 bytes slot, and finish where 0x40 will point to
+            0x00,
+            0x20
+        )
+        
+        if iszero(res) {            // Check if the received data is not 0
+                revert (0, 0)       
+        }
+        
+        return(0x00, 0x20)  
+    }
+}
+```
+
+4. Call external state changing function.
+```
+function externalStateChangingCall(address _a) external {
+    assembly {
+        mstore(0x00, 0x4018d9aa)
+        mstore(0x20, 228)
+        // memory now looks like this
+        // 0x000000000000000000000000000000000000000000000000000000004018d9aa...
+        // 00000000000000000000000000000000000000000000000000000000000000e4
+        
+        let res := call(
+            gas(),
+            _a,
+            0,      // callvalue() - amount of Ether we forwarding to the recipient in this transaction. If func is not payable it should be 0.
+            28,
+            0x40,
+            0,
+            0
+        )
+        
+        if iszero(res) {
+            return(0,0)
+        }
+    }
+}
+```
+
+5. Call external function with unknown return data size.
+```
+    function unknownReturnSize(address _a, uint256 _length) external view returns (bytes memory) {
+        assembly {
+            mstore(0x00, 0x7c70b4db)
+            mstore(0x20, _length)
+            
+            let success := staticcall(
+                gas(),
+                _a,
+                28,
+                0x40,
+                0, // |
+                0  // |- returnOffset and returnSize are 0, because we don't know the return data size 
+            )
+            
+            if iszero(success) {
+                return(0, 0)
+            }
+            
+            returndatacopy(
+                0,                      // copy to memory, starting at memory slot 0
+                0,                      // copy a return data from zero all the way up until the total data size
+                returndatasize()        // return data size(return the length of the returned data from the external call)
+            )
+            
+            return(0, returndatasize()) // return data starting from memory position 0, and data size we get from `returndatasize()`
+        }
+    }
 ```
