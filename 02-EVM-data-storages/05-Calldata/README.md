@@ -1,4 +1,4 @@
-# Calldata
+# Calldata + Cross contract calls
 This section will explain the **Calldata** memory area in the EVM.
 
 ## Table of Content
@@ -9,6 +9,7 @@ This section will explain the **Calldata** memory area in the EVM.
 * [Calldata Types](#calldata-types)
 * [External Calls](#external-calls)
 * [Copying Between Calldata and Memory](#copying-between-calldata-and-memory)
+* [Calldata In Action](#calldata-in-action)
 
 ## Calldata Overview
 - Calldata is a non-modifiable, read-only memory area that represents the entire data passed to a contract when calling a function. Means function selector and arguments.
@@ -313,3 +314,113 @@ function externalStateChangingCall(address _a) external {
         }
     }
 ```
+
+6. Example from OpenZeppelin proxy contract.
+Below is a `delegate` function from **OpenZeppelin** [Proxy.sol](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/fda6b85f2c65d146b86d513a604554d15abd6679/contracts/proxy/Proxy.sol#L22) contract.
+ - `calldatacopy(0, 0, calldatasize())` - this line copying the data from the transaction’s call data into memory. First argument is 0 - means copy data to memory starting from 0 memory area. Second 0 - means the starting point in the calldata to copy from. `calldatasize()`` - the number of bytes to copy. 
+ - `delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)` - on that line the **3rd(0)** and **4th(calldatasize())** arguments mention the memory area where we loaded our calldata. This data will be passed to the function.\
+The **5th(0)** and **6th(0)** arguments, mention that we don't know the size of the returned value from delegatecall, therefore we set 0s for return data. \
+This is done in this way, because with delegatecall we don't know which function will be called in the target contract and which data size it will return.
+- `returndatacopy(0, 0, returndatasize())` - here they use a pattern mentioned in the previous example with unknown return data size.
+- `switch result` - based on the external contract response, this function will revert with the and return some data, or just return a response with the returned data. Both `return()` and `revert()` can return data from a specified memory area.
+```
+function _delegate(address implementation) internal virtual {
+        assembly {
+            // Copy msg.data. We take full control of memory in this inline assembly
+            // block because it will not return to Solidity code. We overwrite the
+            // Solidity scratch pad at memory position 0.
+            calldatacopy(0, 0, calldatasize())
+
+            // Call the implementation.
+            // out and outsize are 0 because we don't know the size yet.
+            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
+
+            // Copy the returned data.
+            returndatacopy(0, 0, returndatasize())
+
+            switch result
+            // delegatecall returns 0 on error.
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
+        }
+    }
+```
+Hope this explanation of this code makes it more clear how it works under the hood.
+
+
+## Calldata In Action
+Below I will attach several contracts which shows how we can use calldata to execute contract functions. The contracts are: 
+ - **ICalldataDemo** - interface for **CalldataDemo** contract.
+```
+interface ICalldataDemo {
+    function get2() external view returns (uint256);            // function which is always return 2
+    function get99(uint256) external view returns (uint256);    // function which returns 88 if pass 8 as argument, otherwise it will return 99
+}
+```
+ - **CallDemo** - contract which will call **CalldataDemo** contract written almost entirely in Yul.
+```
+contract CallDemo {
+    ICalldataDemo public target;
+    
+    constructor(ICalldataDemo _target) {
+        target = _target;
+    }
+
+    function callGet2() external view returns(uint256) {
+        return target.get2();
+    }
+
+    function callGet99(uint256 _arg) external view returns(uint256) {
+        return target.get99(_arg);
+    }
+}
+```
+ - CalldataDemo - the main contract written almost entirely in Yul.
+ ```
+ contract CalldataDemo {
+    fallback() external { 
+        assembly {
+            let cd := calldataload(0) // always loads 32 bytes
+            // d2178b0800000000000000000000000000000000000000000000000000000000
+            let selector := shr(mul(8, 28), cd) // shift rigth to receive a calling function selector
+            // 00000000000000000000000000000000000000000000000000000000d2178b08
+
+            switch selector
+            case 0xd2178b08 { // get2() func selector 
+                returnUint(2)
+            }
+            case 0xba88df04 {   // get99() func selector
+                returnUint(getNotSoSecretValue())
+            }
+            default {
+                revert(0, 0)
+            }   
+
+
+            // FUNCTIONS
+            function returnUint(v) {
+                mstore(0, v)
+                return(0, 0x20)                     // this return will return a control back to the calling contract(this won't rerurn back to the Yul code, even if it is a function inside Yul) ,and finish executoin inside this contract.
+            }
+
+            function getNotSoSecretValue() -> r {
+                // validate that we have enough bytes inside the calldata, such that it could be an argument there.
+                if lt(calldatasize(), 36) {         // we require at least 36, func selector = 4 bytes, and then the argument(32) that's being passed in.
+                    revert(0, 0)
+                }
+
+                let arg1 := calldataload(4)         // load the provided argument from the calldata skipping the func selector(first 4 bytes)
+                if eq(arg1, 8) {
+                    r := 88
+                    leave                           // this keyword helps to leave the function without returning the execution back to the calling contract
+                }
+                r := 99
+            }
+        }
+    }
+}
+ ```
