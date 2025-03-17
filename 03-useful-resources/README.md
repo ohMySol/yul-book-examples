@@ -22,4 +22,4 @@ More read resources you can find [here](https://www.devpill.me/docs/smart-contra
 ## EVM Practice Resources
 1. [Node Guardians](https://nodeguardians.io/) - my personal recommendation.
 2. [EVM Playground](https://www.evm.codes/playground)
-3, [EVM Puzzles](https://github.com/fvictorio/evm-puzzles)
+3. [EVM Puzzles](https://github.com/fvictorio/evm-puzzles)
